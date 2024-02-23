@@ -17,3 +17,4 @@ public static class Win32Apis
 $consoleWindow = [Win32Apis]::GetConsoleWindow()
 $SW_MINIMIZE = 6
 [Win32Apis]::ShowWindow($consoleWindow, $SW_MINIMIZE)
+
