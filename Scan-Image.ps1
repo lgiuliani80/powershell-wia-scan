@@ -26,12 +26,21 @@ $device = $firstScanner.Connect()
 # Assuming to scan from the first item in the scanner
 $item = $device.Items.Item(1)
 
+# $item.Properties | ft
+
 # Set the scan intent
 $item.Properties.Item("6146").Value = $intentMap[$TypeOfScan]
 
 # Set Horizontal and Vertical resolution
 $item.Properties.Item("6147").Value = $ResolutionDpi
 $item.Properties.Item("6148").Value = $ResolutionDpi
+
+# Set Horizontal and Vertical extent
+$item.Properties.Item("6151").Value = [int] (21 / 2.54 * $ResolutionDpi)   ## Horizontal extent
+$item.Properties.Item("6152").Value = [int] (29.5 / 2.54 * $ResolutionDpi) ## Vertical extent
+
+# Set multipage file option
+#TODO: $item.Properties.Item("4108").Value = 256 # TYMED_MULTIPAGE_FILE
 
 $scannedImage = $wiaDialogs.ShowTransfer($item, $formatGUID, $true)
 $scannedImage
