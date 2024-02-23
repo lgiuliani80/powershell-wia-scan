@@ -35,7 +35,7 @@ $item.Properties.Item("6146").Value = $intentMap[$TypeOfScan]
 $item.Properties.Item("6147").Value = $ResolutionDpi
 $item.Properties.Item("6148").Value = $ResolutionDpi
 
-# Set Horizontal and Vertical extent
+# Set Horizontal and Vertical extent (A4 sheet size)
 $item.Properties.Item("6151").Value = [int] (21 / 2.54 * $ResolutionDpi)   ## Horizontal extent
 $item.Properties.Item("6152").Value = [int] (29.5 / 2.54 * $ResolutionDpi) ## Vertical extent
 
