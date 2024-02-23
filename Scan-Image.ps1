@@ -13,14 +13,8 @@ $intentMap = @{
     "Text" = 4
 }
 
-$fileFormatMap = @{
-    "Bmp"  = "{B96B3CAB-0728-11D3-9D7B-0000F81EF32E}"
-    "Jpeg" = "{B96B3CAE-0728-11D3-9D7B-0000F81EF32E}"
-    "Png"  = "{B96B3CAF-0728-11D3-9D7B-0000F81EF32E}"
-    "Tiff" = "{B96B3CB1-0728-11D3-9D7B-0000F81EF32E}"
-}
-
-$formatGUID = $fileFormatMap[$FileFormat]
+Add-Type -AssemblyName System.Drawing
+$formatGUID = ([System.Drawing.Imaging.ImageFormat]($FileFormat)).Guid.ToString("b").ToUpper()
 
 $wiaDevMgr = New-Object -ComObject WIA.DeviceManager
 $wiaDialogs = New-Object -ComObject WIA.CommonDialog
