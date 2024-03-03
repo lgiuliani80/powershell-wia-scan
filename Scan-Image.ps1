@@ -3,10 +3,26 @@ param(
     [Parameter(Mandatory = $true)][ValidateSet("Bmp", "Png", "Tiff", "Jpeg")] [string]$FileFormat,
     [Parameter(Mandatory = $true)][string]$OutputDirectory,
     [Parameter(Mandatory = $false)][int]$ResolutionDpi = 200,
-    [Switch]$UseFeeder
+    [Switch]$UseFeeder,
+    [Switch]$MinimizeConsole
 )
 
-$ErrorActionPreference = "Stop"
+if ($MinimizeConsole) {
+    Add-Type -TypeDefinition @"
+    using System;
+    using System.Runtime.InteropServices;
+    public static class Win32Apis
+    {
+        [DllImport("user32.dll")]
+        public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+        [DllImport("kernel32.dll")]
+        public static extern IntPtr GetConsoleWindow();
+    }
+"@ -Language CSharp -PassThru | Out-Null
+    $consoleWindow = [Win32Apis]::GetConsoleWindow()
+    $SW_MINIMIZE = 6
+    [Win32Apis]::ShowWindow($consoleWindow, $SW_MINIMIZE)
+}
 
 $FEEDER = 1
 $FEED_READY = 1
@@ -35,6 +51,7 @@ if ($UseFeeder) {
 if ($TypeOfScan -eq "Select") {
     $items = $wiaDialogs.ShowSelectItems($device)
     $item = $items[1]
+    $UseFeeder = ($device.Properties.Item("3088").Value -eq 1)
 } else {
     # Assuming to scan from the first item in the scanner
     $item = $device.Items.Item(1)
@@ -51,20 +68,22 @@ if ($TypeOfScan -eq "Select") {
     $item.Properties.Item("6152").Value = [int] (29.5 / 2.54 * $ResolutionDpi) ## Vertical extent
 }
 
-$device.Properties | ft
-$item.Properties | ft
+#$device.Properties | ft  # DEBUG
+#$item.Properties | ft    # DEBUG
 
 $morePages = $true
+$pageNo = 1
 
 while ($morePages) {
 
     try {
+        Write-Output "[PAGE #$pageNo] Acquiring..."
         $scannedImage = $wiaDialogs.ShowTransfer($item, $formatGUID, $true)
         $scannedImage
 
         if ($scannedImage.FormatID -ne $formatGUID) {
             # Convert to the expected format
-            Write-Output "Converting the scanned image to $FileFormat format ..."
+            Write-Output "[PAGE #$pageNo] Converting the scanned image to $FileFormat format ..."
             $imageProcess = New-Object -ComObject WIA.ImageProcess
             $imageProcess.Filters.Add($imageProcess.FilterInfos.Item("Convert").FilterID)
             # Only working with string constants! Ugly but working.
@@ -79,16 +98,23 @@ while ($morePages) {
 
         $imageFileName = Join-Path -Path $OutputDirectory -ChildPath ("ScannedImage.{0:yyMMdd\THHmmss}.{1}.{2}" -f [DateTime]::Now, [Guid]::NewGuid().ToString().Substring(0,5), $FileFormat.ToLower())
 
-        Write-Output "Saving the scanned image to $imageFileName ..."
+        Write-Output "[PAGE #$pageNo] Saving the scanned image to $imageFileName ..."
         $scannedImage
         $scannedImage.SaveFile($imageFileName)
+        $pageNo++
 
+    } catch {
+        if ($_.Exception.HResult -eq 0x80210003) {
+            Write-Output "No more pages to scan."
+            break
+        } else {
+            Write-Error $_
+            break
+        }
     } finally {
-        $morePages = ($null -ne $device.Properties.Item("3088")) -and `
+        $morePages = $UseFeeder -and ($null -ne $device.Properties.Item("3088")) -and `
                      (($device.Properties.Item("3088").Value -band $FEEDER) -ne 0) -and `
                      ($null -ne $device.Properties.Item("3087")) -and `
                      (($device.Properties.Item("3087").Value -band $FEED_READY) -ne 0)
     }
-
-    pause
 }
