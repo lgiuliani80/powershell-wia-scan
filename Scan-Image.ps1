@@ -68,8 +68,8 @@ if ($TypeOfScan -eq "Select") {
     $item.Properties.Item("6152").Value = [int] (29.5 / 2.54 * $ResolutionDpi) ## Vertical extent
 }
 
-#$device.Properties | ft  # DEBUG
-#$item.Properties | ft    # DEBUG
+#$device.Properties | ft
+#$item.Properties | ft
 
 $morePages = $true
 $pageNo = 1
@@ -79,7 +79,8 @@ while ($morePages) {
     try {
         Write-Output "[PAGE #$pageNo] Acquiring..."
         $scannedImage = $wiaDialogs.ShowTransfer($item, $formatGUID, $true)
-        $scannedImage
+        #$scannedImage
+        Write-Output "[PAGE #$pageNo] Scanned image: $($scannedImage.FileExtension) $($scannedImage.Width)x$($scannedImage.Height) $($scannedImage.PixelDepth) bpp [$($scannedImage.HorizontalResolution)x$($scannedImage.VerticalResolution) dpi]"
 
         if ($scannedImage.FormatID -ne $formatGUID) {
             # Convert to the expected format
