@@ -3,11 +3,12 @@ param(
     [Parameter(Mandatory = $true)][ValidateSet("Bmp", "Png", "Tiff", "Jpeg")] [string]$FileFormat,
     [Parameter(Mandatory = $true)][string]$OutputDirectory,
     [Parameter(Mandatory = $false)][int]$ResolutionDpi = 200,
-    [Switch]$UseFeeder,
-    [Switch]$MinimizeConsole
+    [switch]$UseFeeder,
+    [switch]$MinimizeConsole,
+    [switch]$EnableMultipageTiff
 )
 
-if ($MinimizeConsole) {
+Function MinimizeConsoleWindow {
     Add-Type -TypeDefinition @"
     using System;
     using System.Runtime.InteropServices;
@@ -24,6 +25,33 @@ if ($MinimizeConsole) {
     [Win32Apis]::ShowWindow($consoleWindow, $SW_MINIMIZE)
 }
 
+Function MergeImagesToMultipageTiff {
+    param(
+        [string[]] $Files,
+        [string] $OutputFile
+    )
+    
+    if ($Files.Count -eq 0) {
+        return
+    }
+    
+    $ice = [Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | ?{ $_.MimeType -eq "image/tiff" }
+    $im0 = [Drawing.Image]::FromFile($Files[0])
+    $enc = [Drawing.Imaging.Encoder]::SaveFlag
+    $eps = New-Object System.Drawing.Imaging.EncoderParameters(1)
+    $eps.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter($enc, [long][Drawing.Imaging.EncoderValue]::MultiFrame)
+    $im0.Save($OutputFile, $ice, $eps)
+    
+    for ($i = 1; $i -lt $Files.Count; $i++) {
+        $eps.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter($enc, [long][Drawing.Imaging.EncoderValue]::FrameDimensionPage)
+        $bmp = [Drawing.Bitmap]::FromFile($Files[$i])
+        $im0.SaveAdd($bmp, $eps)
+    }
+    
+    $eps.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter($enc, [long][Drawing.Imaging.EncoderValue]::Flush)
+    $im0.SaveAdd($eps)
+}
+
 $FEEDER = 1
 $FEED_READY = 1
 
@@ -31,6 +59,16 @@ $intentMap = @{
     "Color" = 1
     "Grayscale" = 2
     "Text" = 4
+}
+
+if ($MinimizeConsole) {
+    MinimizeConsoleWindow
+}
+
+$OutDir = $OutputDirectory
+
+if ($EnableMultipageTiff) {
+    $OutDir = [IO.Path]::GetTempPath()
 }
 
 Add-Type -AssemblyName System.Drawing
@@ -73,6 +111,7 @@ if ($TypeOfScan -eq "Select") {
 
 $morePages = $true
 $pageNo = 1
+$createdFiles = @()
 
 while ($morePages) {
 
@@ -97,11 +136,12 @@ while ($morePages) {
             $scannedImage = $imageProcess.Apply($scannedImage)
         }
 
-        $imageFileName = Join-Path -Path $OutputDirectory -ChildPath ("ScannedImage.{0:yyMMdd\THHmmss}.{1}.{2}" -f [DateTime]::Now, [Guid]::NewGuid().ToString().Substring(0,5), $FileFormat.ToLower())
+        $imageFileName = Join-Path -Path $OutDir -ChildPath ("ScannedImage.{0:yyMMdd\THHmmss}.{1}.{2}" -f [DateTime]::Now, [Guid]::NewGuid().ToString().Substring(0,5), $FileFormat.ToLower())
 
         Write-Output "[PAGE #$pageNo] Saving the scanned image to $imageFileName ..."
         $scannedImage
         $scannedImage.SaveFile($imageFileName)
+        $createdFiles += $imageFileName
         $pageNo++
 
     } catch {
@@ -118,4 +158,11 @@ while ($morePages) {
                      ($null -ne $device.Properties.Item("3087")) -and `
                      (($device.Properties.Item("3087").Value -band $FEED_READY) -ne 0)
     }
+}
+
+if ($EnableMultipageTiff -and $createdFiles.Count -gt 0) {
+    $multiPageTiffFileName = Join-Path -Path $OutputDirectory -ChildPath ("ScannedPages.{0:yyMMdd\THHmmss}.tiff" -f [DateTime]::Now)
+    Write-Output "Generating merged multipage tiff to $multiPageTiffFileName ..."
+    MergeImagesToMultipageTiff -Files $createdFiles -OutputFile $multiPageTiffFileName
+    $createdFiles | ForEach-Object { Remove-Item -Path $_ -Force }
 }
