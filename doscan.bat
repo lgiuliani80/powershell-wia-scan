@@ -1,0 +1,2 @@
+powershell -ExecutionPolicy remotesigned -Command ".\Scan-Image.ps1 -MinimizeConsole -TypeOfScan Grayscale -FileFormat tiff -OutputDirectory c:\temp -ResolutionDpi 150 -UseFeeder -EnableMultipageTiff"
+::pause
