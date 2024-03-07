@@ -119,7 +119,7 @@ while ($morePages) {
         Write-Output "[PAGE #$pageNo] Acquiring..."
         $scannedImage = $wiaDialogs.ShowTransfer($item, $formatGUID, $true)
         #$scannedImage
-        Write-Output "[PAGE #$pageNo] Scanned image: $($scannedImage.FileExtension) $($scannedImage.Width)x$($scannedImage.Height) $($scannedImage.PixelDepth) bpp [$($scannedImage.HorizontalResolution)x$($scannedImage.VerticalResolution) dpi]"
+        Write-Output "[PAGE #$pageNo] Scanned image: $($scannedImage.FileExtension) $($scannedImage.Width)x$($scannedImage.Height) $($scannedImage.PixelDepth) bpp [$($scannedImage.HorizontalResolution.ToString("N0"))x$($scannedImage.VerticalResolution.ToString("N0")) dpi]"
 
         if ($scannedImage.FormatID -ne $formatGUID) {
             # Convert to the expected format
@@ -136,11 +136,12 @@ while ($morePages) {
             $scannedImage = $imageProcess.Apply($scannedImage)
         }
 
-        $imageFileName = Join-Path -Path $OutDir -ChildPath ("ScannedImage.{0:yyMMdd\THHmmss}.{1}.{2}" -f [DateTime]::Now, [Guid]::NewGuid().ToString().Substring(0,5), $FileFormat.ToLower())
+        $imageFileName = Join-Path -Path $OutDir -ChildPath ("ScannedImage.{0:yyMMdd\THHmmss}.{1}.{2}.{3}" -f [DateTime]::Now, $pageNo, [Guid]::NewGuid().ToString().Substring(0,5), $FileFormat.ToLower())
 
         Write-Output "[PAGE #$pageNo] Saving the scanned image to $imageFileName ..."
-        $scannedImage
         $scannedImage.SaveFile($imageFileName)
+        $scannedImage = $null
+        
         $createdFiles += $imageFileName
         $pageNo++
 
@@ -164,5 +165,5 @@ if ($EnableMultipageTiff -and $createdFiles.Count -gt 0) {
     $multiPageTiffFileName = Join-Path -Path $OutputDirectory -ChildPath ("ScannedPages.{0:yyMMdd\THHmmss}.tiff" -f [DateTime]::Now)
     Write-Output "Generating merged multipage tiff to $multiPageTiffFileName ..."
     MergeImagesToMultipageTiff -Files $createdFiles -OutputFile $multiPageTiffFileName
-    $createdFiles | ForEach-Object { Remove-Item -Path $_ -Force }
+    #$createdFiles | ForEach-Object { Remove-Item -Path $_ -Force }
 }
